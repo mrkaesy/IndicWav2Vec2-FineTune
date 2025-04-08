@@ -27,7 +27,39 @@ The dataset must be segmented and normalized to 16kHz WAV format. The directory 
 
 ---
 
-## ⚙️ Preprocessing and Manifest Creation
+## 🛠️ Environment Setup
+
+### 1. Create a Conda Environment
+
+```bash
+conda create -n wav2vec-finetune python=3.9
+conda activate wav2vec-finetune
+```
+
+### 2. Install System Dependencies
+
+```bash
+sudo apt-get install liblzma-dev libbz2-dev libzstd-dev libsndfile1-dev libopenblas-dev libfftw3-dev libgflags-dev libgoogle-glog-dev build-essential cmake libboost-system-dev libboost-thread-dev libboost-program-options-dev libboost-test-dev libeigen3-dev zlib1g-dev ffmpeg
+```
+
+### 3. Install Python Dependencies
+
+```bash
+pip install -r w2v_inference/requirements.txt
+pip install packaging soundfile swifter editdistance omegaconf
+```
+
+### 4. Install Fairseq
+
+```bash
+git clone https://github.com/AI4Bharat/fairseq.git
+cd fairseq
+pip install --editable ./
+```
+
+---
+
+## ⚙️ Data Processing and Manifest Creation
 
 ### 1. Segment Audio
 
@@ -48,7 +80,19 @@ This will generate `seg1.wav` and `seg2.wav`.
 
 ---
 
-### 2. Prepare Manifest Files
+### 2. Normalize Sample Rate
+
+Normalize all audio files to 16kHz sample rate:
+
+```bash
+bash normalize_sr.sh /path/to/audio_dir wav
+```
+
+---
+
+### 3. Prepare Manifest Files
+
+Use the script to generate the Fairseq manifest:
 
 ```bash
 python prepare_data.py /path/to/root_directory/
