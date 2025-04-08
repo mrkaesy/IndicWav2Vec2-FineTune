@@ -1,5 +1,4 @@
-# IndicWav2Vec2 End‑to‑End Fine‑Tuning Guide (≈1 000 Lines)
-
+# IndicWav2Vec2 End‑to‑End Fine‑Tuning Guide 
 ---
 
 > **Mission:** enable *anyone*—even without ASR or Fairseq experience—to download raw Hindi audio, preprocess it, fine‑tune the IndicWav2Vec2 Base model, evaluate WER, and optionally deploy an API.
