@@ -1,43 +1,42 @@
-# IndicWav2Vec Fine-Tuning on Hindi
+# IndicWav2Vec2 Fine-Tuning for Hindi ASR
 
-This project walks through the complete process of fine-tuning the [IndicWav2Vec Base model](https://github.com/AI4Bharat/IndicWav2Vec) for Automatic Speech Recognition (ASR) using the [SPRING-INX Hindi dataset](https://asr.iitm.ac.in/dataset). You will learn how to prepare your dataset, preprocess audio, create manifests, fine-tune the model, and evaluate performance.
+This guide provides an extensive step-by-step walkthrough of fine-tuning the [IndicWav2Vec2](https://github.com/AI4Bharat/IndicWav2Vec) Base model for Hindi speech recognition using the [SPRING-INX Dataset](https://asr.iitm.ac.in/dataset). It includes detailed setup instructions, data preparation, model fine-tuning, evaluation, and optimization strategies.
 
 ---
 
-## 📁 Dataset Overview
+## 📌 Table of Contents
 
-- **Source**: Spring Lab (IIT Madras)
-- **Language**: Hindi
-- **Total Hours**: 351.18 hours
-  - Train: 316.41 hours
-  - Validation: 29.68 hours
-  - Test: 5.09 hours
+- [Introduction](#introduction)
+- [Environment Setup](#environment-setup)
+- [Dataset and Preprocessing](#dataset-and-preprocessing)
+- [Data Preparation Scripts Explained](#data-preparation-scripts-explained)
+- [Manifest Creation](#manifest-creation)
+- [Model Overview](#model-overview)
+- [Fine-Tuning Pipeline](#fine-tuning-pipeline)
+- [Evaluation](#evaluation)
+- [Results and Observations](#results-and-observations)
+- [Future Work](#future-work)
+- [References](#references)
+
+---
+
+## 📢 Introduction
+
+We explore the fine-tuning of IndicWav2Vec2, a speech recognition model pretrained on 40 Indian languages, for Hindi Automatic Speech Recognition (ASR). We demonstrate the process with the Spring Lab IITM Hindi dataset (~351 hrs), achieving a final Word Error Rate (WER) of **29.93**. The work also explores optimization strategies like learning rate schedules and CTC loss.
 
 ---
 
 ## 🛠️ Environment Setup
 
-### Step 1: Create Conda Environment
-
 ```bash
 conda create -n wav2vec-finetune python=3.9
 conda activate wav2vec-finetune
-```
-
-### Step 2: Install System Dependencies
-
-```bash
-sudo apt-get install liblzma-dev libbz2-dev libzstd-dev libsndfile1-dev libopenblas-dev libfftw3-dev libgflags-dev libgoogle-glog-dev build-essential cmake libboost-all-dev libeigen3-dev ffmpeg
-```
-
-### Step 3: Install Python Requirements
-
-```bash
+sudo apt-get install libsndfile1-dev ffmpeg cmake libboost-all-dev libeigen3-dev
 pip install -r w2v_inference/requirements.txt
-pip install packaging soundfile swifter editdistance omegaconf pandas
+pip install packaging soundfile swifter editdistance omegaconf
 ```
 
-### Step 4: Install Fairseq (Customized)
+### Install Fairseq
 
 ```bash
 git clone https://github.com/AI4Bharat/fairseq.git
@@ -47,124 +46,114 @@ pip install --editable ./
 
 ---
 
-## 📦 Data Preparation Pipeline
+## 📚 Dataset and Preprocessing
 
-All scripts are located in [`data_prep_scripts`](https://github.com/AI4Bharat/indic-wav2vec2/tree/main/data_prep_scripts).
-
-### Step-by-Step Data Preparation
-
-You can either use individual scripts or run everything via the master script `process_data.sh`.
-
-### 🔽 1. Download Data
-
-Prepare a text file `urls.txt` with one line per audio file URL.
-
-```bash
-bash dw_util.sh urls.txt /data/audio_downloads 4
-```
-
-- `urls.txt`: File containing download URLs
-- `/data/audio_downloads`: Directory to store the downloaded files
-- `4`: Number of parallel download threads
+- **Dataset**: Spring Lab IITM - Hindi (351.18 hrs)
+- **Structure**: Includes large unsegmented audio files with transcript
+- **Goal**: Prepare data with ≤15s WAV segments and generate manifest
 
 ---
 
-### 🔇 2. Voice Activity Detection (VAD)
+## 🧾 Data Preparation Scripts Explained
 
-Removes silent portions of the audio.
+### 1. `dw_util.sh`
+**Downloads audio files from URLs.**
 
 ```bash
-python vad.py /data/audio_downloads /data/vad_output hindi
+bash dw_util.sh urls.txt /data/downloads 4
 ```
-
-- `/data/audio_downloads`: Root directory containing language folders
-- `/data/vad_output`: Destination directory for VAD-processed audio
-- `hindi`: Folder name to process
 
 ---
 
-### 🔊 3. SNR Filtering
+### 2. `vad.py`
+**Removes silent portions from the audio using Voice Activity Detection.**
 
-Filters audio segments with poor signal-to-noise ratio.
+```bash
+python vad.py /data/downloads /data/vad_output hindi
+```
+
+---
+
+### 3. `snr_filter.py`
+**Removes noisy audio using Signal-to-Noise Ratio (SNR) filtering.**
 
 ```bash
 python snr_filter.py /data/vad_output hindi
 ```
 
-Filtered files are stored, and noisy ones are moved to `snr_rejected/`.
-
 ---
 
-### ✂️ 4. Chunking
-
-Splits long audio into manageable 15s segments.
+### 4. `chunking.py`
+**Splits long audio files into ≤15s chunks.**
 
 ```bash
 python chunking.py /data/vad_output/hindi
 ```
 
-This replaces original files with chunked ones in-place.
-
 ---
 
-### 🚀 OR Run All Steps in One Command
+### OR Run All in One
 
 ```bash
-bash process_data.sh /data/audio_downloads 4
+bash process_data.sh /data/downloads 4
 ```
 
 ---
 
-## 🧾 Manifest Creation
+## 📁 Manifest Creation
 
-### Language-wise Manifest
+### Directory Structure
+
+```
+/data/
+├── hindi/
+│   ├── file1.wav
+│   ├── transcript.txt
+└── manifest/
+```
+
+### Script
 
 ```bash
-python lang_wise_manifest_creation.py /data/wav_files --dest /data/manifest --ext wav --valid-percent 0.03
+python lang_wise_manifest_creation.py /data/hindi --dest /data/manifest --ext wav --valid-percent 0.03
 ```
 
-- `--ext`: File extension (e.g., `wav`)
-- `--valid-percent`: Portion of training data to use for validation
-
-### Combine Validation Files
-
-```python
-import pandas as pd
-import glob
-
-files = glob.glob("*_valid.tsv")
-dfs = [pd.read_csv(f, skiprows=1, names=['f', 'd'], sep='\t') for f in files]
-combined = pd.concat(dfs)
-combined.to_csv('valid.tsv', index=False, header=False, sep='\t')
-```
-
-Add root directory path as the first line of `valid.tsv`.
+Output:
+- `train.tsv`, `train.wrd`, `train.ltr`
+- `valid.tsv`, ...
+- `test.tsv`, ...
+- `dict.ltr.txt`
 
 ---
 
-## 🧠 Fine-Tuning Configuration
+## 🧠 Model Overview
 
-| Parameter             | Value                                                   |
-|-----------------------|---------------------------------------------------------|
-| Model                 | IndicWav2Vec Base                                       |
-| Loss Function         | CTC (Connectionist Temporal Classification)             |
-| Optimizer             | Adam                                                    |
-| Learning Rate         | `0.00001`                                               |
-| Update Frequency      | `4`                                                     |
-| Max Updates           | `1,520,000`                                             |
-| Pretrained Checkpoint | [Download](https://indic-asr-public.objectstore.e2enetworks.net/aaai_ckpts/pretrained_models/indicw2v_base_pretrained.pt) |
+### IndicWav2Vec Base
+
+| Property         | Value     |
+|------------------|-----------|
+| Transformer      | 12 layers |
+| Hidden Units     | 768       |
+| Params           | 95M       |
+| Optimizer        | Adam      |
+| Loss             | CTC       |
+
+### Architecture:
+- Feature Encoder (CNN)
+- Context Network (Transformer)
+- Quantization (pretraining only)
 
 ---
 
-## 🧪 Fine-Tuning Command
+## 🏁 Fine-Tuning Pipeline
+
+### Training Command
 
 ```bash
 fairseq-hydra-train \
   task.data=/data/manifest \
-  model.w2v_path=/models/indicw2v_base_pretrained.pt \
-  common.log_interval=50 \
-  dataset.max_tokens=1000000 \
-  checkpoint.save_dir=/models/checkpoints_hindi \
+  model.w2v_path=indicw2v_base_pretrained.pt \
+  checkpoint.save_dir=/checkpoints/ \
   +optimization.update_freq='[4]' \
   optimization.lr=0.00001 \
   distributed_training.distributed_world_size=1 \
@@ -174,59 +163,59 @@ fairseq-hydra-train \
 
 ---
 
-## 📊 Results
+## 📈 Evaluation
 
-| Model              | WER (Validation) | WER (Test) | Updates     |
-|--------------------|------------------|------------|-------------|
-| IndicWav2Vec Base  | 29.98            | 29.93      | 1,520,000   |
-
----
-
-## 🔭 Language Model Training
-
-Refer to [`lm_training`](https://github.com/AI4Bharat/indic-wav2vec2/tree/main/lm_training) to install and train 6-gram KenLM language models.
-
----
-
-## 📈 Evaluation and Inference
-
-See [`w2v_inference`](https://github.com/AI4Bharat/indic-wav2vec2/tree/main/w2v_inference) for decoding and evaluation scripts.
+### Inference Script
 
 ```bash
-python infer.py --path model.pt --task audio_finetuning --gen-subset test --results-path results/ ...
+python infer.py \
+  --path checkpoints/model.pt \
+  --task audio_finetuning \
+  --gen-subset test \
+  --results-path /results
 ```
 
 ---
 
-## 🧪 Troubleshooting Tips
+## 📊 Results and Observations
 
-- ❌ **Zero-length files**: Skip them to prevent crashes.
-- 📉 **WER not improving**: Check learning rate, transcript alignment, and try using a tri-stage LR schedule.
-- 🗂️ **Data issues**: Ensure manifest paths are valid and match audio files.
+| Model                 | WER (Validation) | WER (Test) | Updates     |
+|-----------------------|------------------|------------|-------------|
+| IndicWav2Vec2.0 Base  | 29.98            | 29.93      | 1,520,000   |
+| Data2Vec Base         | 27.98            | 28.36      | 479,000     |
 
----
+### Learning Rate Tuning (Tri-stage)
 
-## 📜 License
+| LR      | Update Freq | WER   | Time        |
+|---------|-------------|-------|-------------|
+| 0.0001  | 1           | 33.71 | 2d 18h      |
+| 0.00003 | 4           | 28.36 | 5d 17h      |
 
-This project uses the [MIT License](https://choosealicense.com/licenses/mit/).
-
----
-
-## 📖 Paper & Citation
-
-- [arXiv: Towards Building ASR Systems for the Next Billion Users](https://arxiv.org/abs/2111.03945)
-
-```bibtex
-@inproceedings{javed2021building,
-    title = {Towards Building ASR Systems for the Next Billion Users},
-    author = {Tahir Javed and Sumanth Doddapaneni and Abhigyan Raman and Kaushal Santosh Bhogale and Gowtham Ramesh and Anoop Kunchukuttan and Pratyush Kumar and Mitesh M. Khapra},
-    booktitle = "Proceedings of the AAAI Conference on Artificial Intelligence",
-    year = "2022",
-}
-```
+**WER stagnation** observed at 33.71 was resolved by:
+- Removing zero-sample audio
+- Gradual tuning of learning rate
 
 ---
 
-## 📧 Contact
+## 🚀 Future Work
 
-- Keyur Chaudhari – [keyur.email@example.com](mailto:keyur.email@example.com)
+- LoRA-based fine-tuning for efficient adaptation
+- Inference API with form-assist bot (OCR + GPT + ASR)
+- Domain-specific LM integration
+- Code-switched dataset: Hinglish
+
+---
+
+## 📚 References
+
+1. [AI4Bharat IndicWav2Vec](https://github.com/AI4Bharat/IndicWav2Vec)
+2. [Illustrated Wav2Vec2.0](https://jonathanbgn.com/2021/09/30/illustrated-wav2vec-2.html)
+3. [SPRING-INX Hindi Dataset](https://asr.iitm.ac.in/dataset)
+4. [Wav2Vec2.0 Paper](https://arxiv.org/abs/2006.11477)
+
+---
+
+For more technical documentation and experiments, refer to:
+- `readme1.md`, `README2.md`, and `README3.md` (combined here)
+- Mid-term and final reports (included above)
+
