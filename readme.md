@@ -2,10 +2,6 @@
 ---
 
 > **Mission:** enable *anyone*—even without ASR or Fairseq experience—to download raw Hindi audio, preprocess it, fine‑tune the IndicWav2Vec2 Base model, evaluate WER, and optionally deploy an API.
->
-> **Audience:** graduate students, hobbyists, or engineers with basic Linux + Python knowledge and access to at least one NVIDIA GPU (8 GB VRAM works for Base).
->
-> **Outcome:** you will finish with a trained checkpoint (`checkpoint_best.pt`), KenLM language model (`lm.binary`), a reproducible folder hierarchy, and a mental map of *why* every step exists.
 
 ---
 
