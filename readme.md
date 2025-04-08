@@ -20,7 +20,6 @@ The dataset must be segmented and normalized to 16kHz WAV format. The directory 
 ├── hindi/
 │   ├── transcript.txt
 │   ├── file1.wav
-│   ├── file2.wav
 │   └── ...
 └── manifest/
 ```
@@ -39,7 +38,8 @@ conda activate wav2vec-finetune
 ### 2. Install System Dependencies
 
 ```bash
-sudo apt-get install liblzma-dev libbz2-dev libzstd-dev libsndfile1-dev libopenblas-dev libfftw3-dev libgflags-dev libgoogle-glog-dev build-essential cmake libboost-system-dev libboost-thread-dev libboost-program-options-dev libboost-test-dev libeigen3-dev zlib1g-dev ffmpeg
+sudo apt-get install liblzma-dev libbz2-dev libzstd-dev libsndfile1-dev libopenblas-dev libfftw3-dev libgflags-dev libgoogle-glog-dev \
+build-essential cmake libboost-system-dev libboost-thread-dev libboost-program-options-dev libboost-test-dev libeigen3-dev ffmpeg
 ```
 
 ### 3. Install Python Dependencies
@@ -59,60 +59,50 @@ pip install --editable ./
 
 ---
 
-## ⚙️ Data Processing and Manifest Creation
+## ⚙️ Data Preparation
 
-### 1. Segment Audio
+All data preparation scripts are located in the [`data_prep_scripts`](https://github.com/AI4Bharat/indic-wav2vec2/tree/main/data_prep_scripts) directory.
 
-Use the segmentation script:
+The pipeline includes:
+1. **Downloading the data**
+2. **Voice Activity Detection (VAD)** — `vad.py`
+3. **SNR Filtering** — `snr_filter.py`
+4. **Audio Chunking** — `chunking.py`
 
-```bash
-python segment_audio.py <input_dir> <segment_file> <output_dir>
-```
-
-Example `segment_file`:
-
-```
-seg1 audio1 0.0 5.0
-seg2 audio2 10.0 15.0
-```
-
-This will generate `seg1.wav` and `seg2.wav`.
-
----
-
-### 2. Normalize Sample Rate
-
-Normalize all audio files to 16kHz sample rate:
+These steps are automatically handled by:
 
 ```bash
-bash normalize_sr.sh /path/to/audio_dir wav
+bash process_data.sh <path_to_urls> <data_store_path> <num_threads>
 ```
 
 ---
 
-### 3. Prepare Manifest Files
+## 🧾 Manifest Creation
 
-Use the script to generate the Fairseq manifest:
+Create language-specific manifests:
 
 ```bash
-python prepare_data.py /path/to/root_directory/
+python path/to/lang_wise_manifest_creation.py /path/to/wave/files --dest /manifest/path --ext wav --valid-percent 0.03
 ```
 
-### Output Structure
+To generate a combined validation manifest:
 
+```python
+import pandas as pd
+import glob
+
+filenames = glob.glob("*_valid.tsv")
+combined = []
+
+for f in filenames:
+    df = pd.read_csv(f, skiprows=1, names=['f', 'd'], sep='\t')
+    combined.append(df)
+
+df_combined = pd.concat(combined, axis=0, ignore_index=True)
+df_combined.to_csv('valid.tsv', index=True, header=False, sep='\t')
 ```
-manifest/
-├── train.tsv
-├── train.wrd
-├── train.ltr
-├── valid.tsv
-├── valid.wrd
-├── valid.ltr
-├── test.tsv
-├── test.wrd
-├── test.ltr
-└── dict.ltr.txt
-```
+
+Ensure `/path/to/wav/files/` is added to the first line of `valid.tsv`.
 
 ---
 
@@ -131,8 +121,6 @@ manifest/
 ---
 
 ## 🚀 Fine-Tuning Command
-
-Run the following command using `fairseq` and Hydra config:
 
 ```bash
 fairseq-hydra-train \
@@ -158,27 +146,54 @@ fairseq-hydra-train \
 
 ---
 
-## 🧪 Troubleshooting
+## 📚 Training Language Model
 
-- 🔍 **Zero-sample audio**: Remove or skip files with no samples to avoid crashing.
-- 📉 **WER not improving?**
-  - Adjust `learning_rate`, `update_freq`, or training duration.
-  - Use a tri-stage LR scheduler (warmup → hold → decay).
-  - Ensure transcript formatting is clean and consistent.
+Scripts for preparing and training LMs are in the [`lm_training`](https://github.com/AI4Bharat/indic-wav2vec2/tree/main/lm_training) directory.
+
+---
+
+## 🧪 Inference and Evaluation
+
+Scripts and documentation for inference and evaluation are in the [`w2v_inference`](https://github.com/AI4Bharat/indic-wav2vec2/tree/main/w2v_inference) directory.
 
 ---
 
 ## 🔭 Future Work
 
 - Add KenLM decoding and Hindi-specific LM integration.
-- Try fine-tuning with larger multilingual datasets.
-- Evaluate with WER across more benchmarks.
+- Fine-tune on larger multilingual corpora.
+- Optimize tri-stage learning rate for better convergence.
+
+---
+
+## 🧪 Troubleshooting
+
+- 🔍 **Zero-sample audio**: Remove or skip to prevent crashes.
+- 📉 **WER stagnant**:
+  - Tune learning rate or update frequency
+  - Check manifest and data consistency
+  - Use a tri-stage learning rate schedule
 
 ---
 
 ## 📜 License
 
-This project inherits the [MIT License](https://choosealicense.com/licenses/mit/) from the original IndicWav2Vec repo.
+IndicWav2Vec is [MIT-licensed](https://choosealicense.com/licenses/mit/). Applies to pretrained, fine-tuned, and language models.
+
+---
+
+## 📖 Paper & Citation
+
+- arXiv: [Towards Building ASR Systems for the Next Billion Users](https://arxiv.org/abs/2111.03945)
+
+```bibtex
+@inproceedings{javed2021building,
+    title = {Towards Building ASR Systems for the Next Billion Users},
+    author = {Tahir Javed and Sumanth Doddapaneni and Abhigyan Raman and Kaushal Santosh Bhogale and Gowtham Ramesh and Anoop Kunchukuttan and Pratyush Kumar and Mitesh M. Khapra},
+    booktitle = "Proceedings of the AAAI Conference on Artificial Intelligence",
+    year = "2022",
+}
+```
 
 ---
 
