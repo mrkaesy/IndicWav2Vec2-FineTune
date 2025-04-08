@@ -1,4 +1,4 @@
-# Tutorial: Fine-Tuning the IndicWav2Vec2 Model for Hindi ASR
+# Fine-Tuning the IndicWav2Vec2 Model for Hindi ASR
 
 This tutorial provides a comprehensive guide on fine-tuning the IndicWav2Vec2 Base model for Automatic Speech Recognition (ASR) on Hindi data using the Spring Lab IIT Madras dataset. The process includes dataset preparation, preprocessing, manifest creation, model understanding, fine-tuning, evaluation, and recommendations for improvement.
 
